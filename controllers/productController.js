@@ -4,6 +4,28 @@ const util = require('util');
 const readFile = util.promisify(fs.readFile);
 const writeFile = util.promisify(fs.writeFile);
 
+const validateProduct = (req, res, next) => {
+  const { name, price } = req.body;
+  if (!name.trim())
+    return res.status(400).json({ message: 'name is required' });
+  if (!+price || +price <= 0)
+    return res
+      .status(400)
+      .json({ message: 'price must be numeric and greater than zero' });
+  if (!price) return res.status(400).json({ message: 'price is required' });
+  next();
+};
+
+const checkProductIsExist = async (req, res, next) => {
+  const { id } = req.params;
+  const data = await readFile('./product.json', 'utf8');
+  const products = JSON.parse(data);
+  const idx = products.findIndex(product => product.id === +id);
+  if (idx === -1)
+    return res.status(400).json({ message: 'Invalid product id' });
+  next();
+};
+
 const getAllProducts = async (req, res, next) => {
   try {
     const { name, order } = req.query;
@@ -29,8 +51,7 @@ const getAllProducts = async (req, res, next) => {
 
     res.status(200).json({ products: result });
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
@@ -44,22 +65,13 @@ const getProduct = async (req, res, next) => {
       .status(200)
       .json({ product: filteredProduct.length ? filteredProduct[0] : null });
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
 const createProduct = async (req, res, next) => {
   try {
     const { name, price } = req.body;
-
-    if (!name.trim())
-      return res.status(400).json({ message: 'name is required' });
-    if (!+price || +price <= 0)
-      return res
-        .status(400)
-        .json({ message: 'price must be numeric and greater than zero' });
-    if (!price) return res.status(400).json({ message: 'price is required' });
 
     const data = await readFile('./product.json', 'utf8');
     const products = JSON.parse(data);
@@ -75,13 +87,12 @@ const createProduct = async (req, res, next) => {
       product: products[products.length - 1]
     });
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 
   // fs.readFile('./product.json', 'utf8', (err, data) => {
-  //   if (err) return res.status(500).json({ message: 'Internal server error' });
-
+  // if (err) return res.status(500).json({ message: 'Internal server error' });
+  // if (err) return next(err);
   //   const products = JSON.parse(data);
   //   const newProduct = {
   //     id: products[products.length - 1].id + 1,
@@ -114,9 +125,6 @@ const updateProduct = async (req, res, next) => {
     const products = JSON.parse(data);
 
     const idx = products.findIndex(product => product.id === +id);
-    if (idx === -1)
-      return res.status(400).json({ message: 'Invalid product id' });
-
     if (name && name.trim()) products[idx].name = name.trim();
     if (price) products[idx].price = +price;
 
@@ -125,8 +133,7 @@ const updateProduct = async (req, res, next) => {
       .status(200)
       .json({ message: 'Product update successfully', product: products[idx] });
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
@@ -137,16 +144,11 @@ const deleteProduct = async (req, res, next) => {
     const data = await readFile('./product.json', 'utf8');
     const products = JSON.parse(data);
 
-    const idx = products.findIndex(product => product.id === +id);
-    if (idx === -1)
-      return res.status(400).json({ message: 'Invalid product id' });
-
     const updatedProducts = products.filter(product => product.id !== +id);
     await writeFile('./product.json', JSON.stringify(updatedProducts));
     res.status(204).json();
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
@@ -155,5 +157,7 @@ module.exports = {
   getProduct,
   createProduct,
   updateProduct,
-  deleteProduct
+  deleteProduct,
+  validateProduct,
+  checkProductIsExist
 };
